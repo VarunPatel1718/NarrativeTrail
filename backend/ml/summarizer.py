@@ -124,7 +124,7 @@ spanning far-left to far-right during the US 2024 election period.
 
 Number of clusters: {nr_topics}
 Top topic themes found:
-{chr(10).join([f"- {t.get('Label', t['Name'])}: {t['Count']} posts" for t in valid])}
+{chr(10).join([f"- {t.get('Label', t.get('Name', 'Unknown'))}: {t['Count']} posts" for t in valid])}
 
 Write exactly 2 sentences about what these topic clusters reveal about
 the dominant political narratives in this dataset during the 2024 election period.

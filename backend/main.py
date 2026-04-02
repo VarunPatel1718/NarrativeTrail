@@ -86,19 +86,27 @@ def search(q: Optional[str] = Query(default=''), top_k: int = 10):
     ]
 
     return {"results": posts, "query": q, "suggestions": suggestions, "summary": summary}
-
 # ── Clusters ──────────────────────────────────────────────
 @app.get("/api/clusters")
 def clusters(nr_topics: int = Query(default=10)):
     from ml.clustering import load_clusters, build_clusters
     from ml.summarizer import summarize_clusters
+    from data.database import get_connection
 
     cached = load_clusters()
     if cached is None or cached.get('nr_topics') != nr_topics:
         cached = build_clusters(nr_topics=nr_topics)
 
-    summary = summarize_clusters(cached.get('topic_info', []), nr_topics)
-    cached['summary'] = summary
+    try:
+        summary = summarize_clusters(cached.get('topic_info', []), nr_topics)
+        cached['summary'] = summary
+    except Exception as e:
+        cached['summary'] = f"Analysis of {nr_topics} topic clusters across political communities."
+
+    con = get_connection()
+    total = con.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
+    cached['total_posts'] = total
+
     return cached
 
 # ── Run ───────────────────────────────────────────────────

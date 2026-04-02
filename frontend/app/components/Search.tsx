@@ -5,11 +5,19 @@ import axios from 'axios';
 const API = process.env.NEXT_PUBLIC_API_URL;
 
 const SUBREDDIT_COLORS: Record<string, string> = {
-  Conservative: '#fc8181', Republican: '#f56565',
-  Liberal: '#68d391', democrats: '#4299e1',
-  socialism: '#f6ad55', Anarchism: '#b794f4',
-  neoliberal: '#76e4f7', politics: '#63b3ed',
-  worldpolitics: '#fbd38d', PoliticalDiscussion: '#9ae6b4',
+  Conservative: '#f97316', Republican: '#ef4444',
+  Liberal: '#34d399', democrats: '#60a5fa',
+  socialism: '#fb923c', Anarchism: '#f43f5e',
+  neoliberal: '#a78bfa', politics: '#94a3b8',
+  worldpolitics: '#fbbf24', PoliticalDiscussion: '#e2e8f0',
+};
+
+const IDEOLOGY: Record<string, string> = {
+  Anarchism: 'Far Left', socialism: 'Left',
+  Liberal: 'Center Left', democrats: 'Center Left',
+  neoliberal: 'Center', politics: 'Center',
+  PoliticalDiscussion: 'Center', worldpolitics: 'Center',
+  Conservative: 'Right', Republican: 'Far Right',
 };
 
 export default function Search() {
@@ -33,84 +41,123 @@ export default function Search() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-white mb-2">🔍 Semantic Search</h2>
-      <p className="text-sm mb-4" style={{ color: '#718096' }}>
-        Finds posts by meaning — not just keywords. Try concepts with zero word overlap.
-      </p>
+      <div className="mb-4">
+        <h2 className="text-xl font-bold text-white">🔍 Semantic Search</h2>
+        <p className="text-sm mt-0.5" style={{ color: '#64748b' }}>
+          Finds posts by <strong style={{ color: '#a78bfa' }}>meaning</strong> — not keywords.
+          Works across languages. Try concepts with zero word overlap.
+        </p>
+      </div>
 
+      {/* Search bar */}
       <div className="flex gap-2 mb-4">
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && search(query)}
-          placeholder="e.g. economic inequality, border security, voting rights..."
-          className="flex-1 px-4 py-2 rounded-lg text-white text-sm"
-          style={{ background: '#2d3748', border: '1px solid #4a5568' }}
+          placeholder="e.g. economic inequality, border security, voting rights, climate crisis..."
+          className="flex-1 px-4 py-3 rounded-xl text-white text-sm"
+          style={{ background: '#0f1923', border: '1px solid #1e2d3d', color: '#e2e8f0' }}
         />
-        <button
-          onClick={() => search(query)}
-          className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-          style={{ background: '#4f46e5' }}
-        >
+        <button onClick={() => search(query)}
+          className="px-6 py-3 rounded-xl text-sm font-medium text-white"
+          style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)' }}>
           {loading ? 'Searching...' : 'Search'}
         </button>
       </div>
 
       {/* AI Summary */}
       {summary && (
-        <div className="mb-4 p-4 rounded-lg text-sm"
-          style={{ background: '#1a1f2e', border: '1px solid #4f46e5', color: '#a0aec0' }}>
-          🤖 <strong className="text-white">AI Insight:</strong> {summary}
+        <div className="insight-box mb-4">
+          <div className="flex items-start gap-2">
+            <span>🤖</span>
+            <div>
+              <span className="text-xs font-semibold" style={{ color: '#a78bfa' }}>
+                AI SEARCH ANALYSIS
+              </span>
+              <p className="text-sm mt-1" style={{ color: '#94a3b8', lineHeight: 1.6 }}>
+                {summary}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Suggestions */}
+      {/* Follow-up suggestions */}
       {suggestions.length > 0 && (
-        <div className="mb-4">
-          <span className="text-xs mr-2" style={{ color: '#718096' }}>Follow-up queries:</span>
+        <div className="mb-4 flex flex-wrap gap-2 items-center">
+          <span className="text-xs" style={{ color: '#475569' }}>Follow-up:</span>
           {suggestions.map(s => (
-            <button key={s} onClick={() => { setQuery(s); search(s); }}
-              className="mr-2 mb-1 px-3 py-1 rounded-full text-xs"
-              style={{ background: '#2d3748', color: '#a0aec0', border: '1px solid #4a5568' }}>
+            <button key={s}
+              onClick={() => { setQuery(s); search(s); }}
+              className="px-3 py-1 rounded-full text-xs transition-all"
+              style={{
+                background: 'rgba(79,70,229,0.15)',
+                color: '#a78bfa',
+                border: '1px solid rgba(79,70,229,0.3)'
+              }}>
               {s}
             </button>
           ))}
         </div>
       )}
 
-      {loading && <p style={{ color: '#718096' }}>Searching embeddings...</p>}
-      {!loading && searched && results.length === 0 && (
-        <p style={{ color: '#718096' }}>No results found.</p>
+      {loading && (
+        <div className="card p-8 text-center">
+          <p style={{ color: '#64748b' }}>Searching 8,567 post embeddings...</p>
+        </div>
       )}
 
+      {!loading && searched && results.length === 0 && (
+        <div className="card p-8 text-center">
+          <p style={{ color: '#64748b' }}>No results found. Try a different query.</p>
+        </div>
+      )}
+
+      {/* Results */}
       <div className="flex flex-col gap-3">
-        {results.map(post => (
-          <div key={post.id} className="p-4 rounded-lg"
-            style={{ background: '#1a1f2e', border: '1px solid #2d3748' }}>
+        {results.map((post, idx) => (
+          <div key={post.id} className="card p-4 transition-all"
+            style={{ borderLeft: `3px solid ${SUBREDDIT_COLORS[post.subreddit] || '#4f46e5'}` }}>
             <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <a href={`https://reddit.com${post.permalink}`} target="_blank"
-                  className="font-medium text-white hover:underline">
-                  {post.title}
-                </a>
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium"
-                    style={{
-                      background: (SUBREDDIT_COLORS[post.subreddit] || '#a0aec0') + '22',
-                      color: SUBREDDIT_COLORS[post.subreddit] || '#a0aec0'
-                    }}>
+              <div className="flex-1 min-w-0">
+                {/* Rank + title */}
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-bold shrink-0 mt-0.5"
+                    style={{ color: '#334155' }}>#{idx + 1}</span>
+                  <a href={`https://reddit.com${post.permalink}`} target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-white hover:underline leading-snug">
+                    {post.title}
+                  </a>
+                </div>
+
+                {/* Meta */}
+                <div className="flex gap-2 mt-2 flex-wrap items-center">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{
+                    background: (SUBREDDIT_COLORS[post.subreddit] || '#a78bfa') + '22',
+                    color: SUBREDDIT_COLORS[post.subreddit] || '#a78bfa'
+                  }}>
                     r/{post.subreddit}
                   </span>
-                  <span className="text-xs" style={{ color: '#718096' }}>
-                    ↑ {post.score} · u/{post.author}
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    color: '#475569'
+                  }}>
+                    {IDEOLOGY[post.subreddit] || 'Unknown'}
+                  </span>
+                  <span className="text-xs" style={{ color: '#334155' }}>
+                    ↑ {post.score?.toLocaleString()} · u/{post.author}
                   </span>
                 </div>
               </div>
-              <div className="text-right text-xs shrink-0" style={{ color: '#4a5568' }}>
-                similarity<br />
-                <span style={{ color: '#4f46e5', fontSize: 14, fontWeight: 600 }}>
+
+              {/* Similarity score */}
+              <div className="text-center shrink-0">
+                <div className="text-xs" style={{ color: '#334155' }}>similarity</div>
+                <div className="text-lg font-bold" style={{ color: '#4f46e5' }}>
                   {post.similarity_score?.toFixed(3)}
-                </span>
+                </div>
               </div>
             </div>
           </div>

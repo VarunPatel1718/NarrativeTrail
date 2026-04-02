@@ -7,16 +7,19 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 const TOPIC_COLORS = [
   '#4f46e5', '#7c3aed', '#db2777', '#dc2626', '#d97706',
   '#65a30d', '#0891b2', '#0284c7', '#4338ca', '#be185d',
+  '#059669', '#b45309', '#7c2d12', '#1e40af', '#6d28d9',
 ];
 
 export default function Clusters() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [nTopics, setNTopics] = useState(10);
-  const [selected, setSelected] = useState<any>(null);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [hoveredPost, setHoveredPost] = useState<any>(null);
 
   const fetchClusters = async (n: number) => {
     setLoading(true);
+    setSelected(null);
     const res = await axios.get(`${API}/api/clusters`, { params: { nr_topics: n } });
     setData(res.data);
     setLoading(false);
@@ -24,10 +27,10 @@ export default function Clusters() {
 
   useEffect(() => { fetchClusters(10); }, []);
 
-  const WIDTH = 600, HEIGHT = 500;
+  const WIDTH = 560, HEIGHT = 460;
 
-  // Normalize UMAP coords to SVG space
   const normalize = (points: any[]) => {
+    if (!points.length) return [];
     const xs = points.map((p: any) => p.x);
     const ys = points.map((p: any) => p.y);
     const minX = Math.min(...xs), maxX = Math.max(...xs);
@@ -40,70 +43,129 @@ export default function Clusters() {
   };
 
   const points = data ? normalize(data.points) : [];
+  const topics = data?.topic_info?.filter((t: any) => t.Topic !== -1) || [];
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-white mb-2">🗂️ Topic Clusters</h2>
-      <p className="text-sm mb-4" style={{ color: '#718096' }}>
-        BERTopic + UMAP — each dot is a post, colored by topic cluster.
-      </p>
-
-      {/* Slider */}
-      <div className="flex items-center gap-4 mb-6">
-        <span className="text-sm" style={{ color: '#a0aec0' }}>Topics:</span>
-        <input type="range" min={2} max={20} value={nTopics}
-          onChange={e => setNTopics(Number(e.target.value))}
-          className="w-32" />
-        <span className="text-sm font-medium text-white">{nTopics}</span>
-        <button onClick={() => fetchClusters(nTopics)}
-          className="px-4 py-1.5 rounded-lg text-sm font-medium text-white"
-          style={{ background: '#4f46e5' }}>
-          {loading ? 'Loading...' : 'Apply'}
-        </button>
+      <div className="mb-4">
+        <h2 className="text-xl font-bold text-white">🗂️ Topic Cluster Map</h2>
+        <p className="text-sm mt-0.5" style={{ color: '#64748b' }}>
+          BERTopic + UMAP — each dot is a post colored by dominant narrative theme.
+          Click a topic to highlight its posts.
+        </p>
       </div>
 
-      {loading && <p style={{ color: '#718096' }}>Running BERTopic clustering...</p>}
+      {/* Controls */}
+      <div className="card p-4 mb-5 flex items-center gap-4 flex-wrap">
+        <span className="text-sm font-medium" style={{ color: '#94a3b8' }}>
+          Number of Topics:
+        </span>
+        <input type="range" min={2} max={20} value={nTopics}
+          onChange={e => setNTopics(Number(e.target.value))}
+          className="w-32" style={{ accentColor: '#7c3aed' }} />
+        <span className="text-sm font-bold" style={{ color: '#a78bfa' }}>{nTopics}</span>
+        <button onClick={() => fetchClusters(nTopics)}
+          className="px-4 py-1.5 rounded-lg text-sm font-medium text-white"
+          style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)' }}>
+          {loading ? 'Running...' : 'Apply'}
+        </button>
+        <span className="text-xs" style={{ color: '#334155' }}>
+          Try extremes: 2 topics vs 20 topics
+        </span>
+      </div>
 
-      {!loading && data && (
-        <div className="flex gap-6">
+      {loading ? (
+        <div className="card p-12 text-center">
+          <div className="text-4xl mb-3">⚙️</div>
+          <p style={{ color: '#64748b' }}>Running BERTopic on 8,567 posts...</p>
+          <p className="text-xs mt-1" style={{ color: '#334155' }}>
+            This may take 30–60 seconds
+          </p>
+        </div>
+      ) : (
+        <div className="flex gap-5">
           {/* Scatter plot */}
-          <div style={{ background: '#1a1f2e', borderRadius: 12 }}>
-            <svg width={WIDTH} height={HEIGHT}>
+          <div className="card p-2" style={{ flex: 'none' }}>
+            <svg width={WIDTH} height={HEIGHT} style={{ cursor: 'crosshair' }}
+              onMouseLeave={() => setHoveredPost(null)}>
               {points.map((p: any, i: number) => (
-                <circle key={i} cx={p.sx} cy={p.sy} r={2.5}
-                  fill={p.topic === -1 ? '#2d3748' : TOPIC_COLORS[p.topic % TOPIC_COLORS.length]}
-                  opacity={0.7}
-                  onClick={() => setSelected(p)}
-                  style={{ cursor: 'pointer' }}
+                <circle key={i}
+                  cx={p.sx} cy={p.sy} r={2.5}
+                  fill={p.topic === -1
+                    ? '#1e2d3d'
+                    : TOPIC_COLORS[p.topic % TOPIC_COLORS.length]}
+                  opacity={
+                    selected !== null && selected !== p.topic ? 0.08 : 0.85
+                  }
+                  onClick={() => setSelected(p.topic === selected ? null : p.topic)}
+                  onMouseEnter={() => setHoveredPost(p)}
+                  style={{ transition: 'opacity 0.15s', cursor: 'pointer' }}
                 />
               ))}
             </svg>
           </div>
 
-          {/* Topic list */}
-          <div style={{ width: 220 }}>
-            <p className="text-xs font-medium mb-3" style={{ color: '#718096' }}>TOPICS</p>
-            {data.topic_info
-              .filter((t: any) => t.Topic !== -1)
-              .map((t: any) => (
-                <div key={t.Topic} className="flex items-center gap-2 mb-2">
-                  <div className="w-3 h-3 rounded-full shrink-0"
-                    style={{ background: TOPIC_COLORS[t.Topic % TOPIC_COLORS.length] }} />
-                  <div>
-                    <span className="text-xs text-white">{t.Name.replace(/_/g, ' ')}</span>
-                    <span className="text-xs ml-1" style={{ color: '#4a5568' }}>({t.Count})</span>
-                  </div>
-                </div>
-              ))}
+          {/* Right panel */}
+          <div className="flex-1 flex flex-col gap-3">
+            {/* Topic list */}
+            <div>
+              <p className="text-xs font-semibold mb-2" style={{ color: '#475569' }}>
+                NARRATIVE THEMES — Click to highlight
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {topics.map((t: any) => (
+                  <button key={t.Topic}
+                    onClick={() => setSelected(t.Topic === selected ? null : t.Topic)}
+                    className="flex items-center gap-3 p-2.5 rounded-xl text-left transition-all"
+                    style={{
+                      background: selected === t.Topic
+                        ? `${TOPIC_COLORS[t.Topic % TOPIC_COLORS.length]}22`
+                        : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${selected === t.Topic
+                        ? TOPIC_COLORS[t.Topic % TOPIC_COLORS.length]
+                        : '#1e2d3d'}`
+                    }}>
+                    <div className="w-3 h-3 rounded-full shrink-0"
+                      style={{ background: TOPIC_COLORS[t.Topic % TOPIC_COLORS.length] }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-white truncate">
+                        {t.Label || t.Name.replace(/_/g, ' ')}
+                      </div>
+                      <div className="text-xs" style={{ color: '#475569' }}>
+                        {t.Count} posts
+                      </div>
+                    </div>
+                    <div className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{
+                      background: `${TOPIC_COLORS[t.Topic % TOPIC_COLORS.length]}22`,
+                      color: TOPIC_COLORS[t.Topic % TOPIC_COLORS.length]
+                    }}>
+                      {((t.Count / 8567) * 100).toFixed(1)}%
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-            {selected && (
-              <div className="mt-4 p-3 rounded-lg"
-                style={{ background: '#0f1117', border: '1px solid #4f46e5' }}>
-                <p className="text-xs font-medium text-white">Selected Post</p>
-                <p className="text-xs mt-1" style={{ color: '#a0aec0' }}>
-                  Topic: {selected.topic === -1 ? 'Noise' : selected.topic}
+            {/* AI Summary */}
+            {data?.summary && (
+              <div className="insight-box">
+                <span className="text-xs font-semibold" style={{ color: '#a78bfa' }}>
+                  🤖 AI CLUSTER ANALYSIS
+                </span>
+                <p className="text-sm mt-1" style={{ color: '#94a3b8', lineHeight: 1.6 }}>
+                  {data.summary}
                 </p>
-                <p className="text-xs" style={{ color: '#4a5568' }}>ID: {selected.id}</p>
+              </div>
+            )}
+
+            {/* Noise info */}
+            {data?.topic_info?.find((t: any) => t.Topic === -1) && (
+              <div className="card p-3">
+                <p className="text-xs" style={{ color: '#334155' }}>
+                  ⬛ <span style={{ color: '#475569' }}>Noise cluster (topic -1):</span>{' '}
+                  {data.topic_info.find((t: any) => t.Topic === -1)?.Count} posts
+                  that don't fit cleanly into any topic — normal for HDBSCAN.
+                </p>
               </div>
             )}
           </div>

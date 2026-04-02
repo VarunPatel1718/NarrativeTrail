@@ -6,14 +6,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import networkx as nx
 import community as community_louvain
-import json
 from data.database import get_connection
 
 def build_network():
-    """Build author network with PageRank + Louvain community detection."""
     con = get_connection()
 
-    # Get top authors
+    # Get all authors with their subreddits and scores
     authors_df = con.execute("""
         SELECT 
             author,
@@ -26,57 +24,64 @@ def build_network():
           AND author != 'AutoModerator'
         GROUP BY author, subreddit
         ORDER BY post_count DESC
-        LIMIT 200
     """).fetchdf()
 
-    # Get crosspost edges
-    edges_df = con.execute("""
-        SELECT 
-            p1.author as source,
-            p2.author as target,
-            p1.subreddit as source_subreddit,
-            p2.subreddit as target_subreddit,
-            p1.score as weight
-        FROM posts p1
-        JOIN posts p2 ON p1.crosspost_parent = 't3_' || p2.id
-        WHERE p1.crosspost_parent != ''
-          AND p1.author != ''
-          AND p2.author != ''
-          AND p1.author != '[deleted]'
-          AND p2.author != '[deleted]'
-    """).fetchdf()
+    # Find authors who post in MORE THAN ONE subreddit
+    # These are the cross-spectrum bridges
+    author_subs = authors_df.groupby('author')['subreddit'].apply(list).reset_index()
+    author_subs.columns = ['author', 'subreddits']
+    multi_sub_authors = author_subs[author_subs['subreddits'].apply(len) > 1]
 
-    # Build directed graph
-    G = nx.DiGraph()
+    print(f"Authors posting in multiple subreddits: {len(multi_sub_authors)}")
 
-    # Add nodes
-    for _, row in authors_df.iterrows():
-        G.add_node(row['author'], 
+    # Build graph
+    G = nx.Graph()
+
+    # Add nodes — top 200 authors by total posts
+    top_authors = authors_df.groupby('author').agg(
+        post_count=('post_count', 'sum'),
+        total_score=('total_score', 'sum'),
+        subreddit=('subreddit', 'first')
+    ).reset_index().sort_values('post_count', ascending=False).head(200)
+
+    for _, row in top_authors.iterrows():
+        G.add_node(row['author'],
                    subreddit=row['subreddit'],
                    post_count=int(row['post_count']),
                    total_score=int(row['total_score']))
 
-    # Add edges
-    for _, row in edges_df.iterrows():
-        if G.has_node(row['source']) and G.has_node(row['target']):
-            G.add_edge(row['source'], row['target'], 
-                      weight=max(1, int(row['weight'])))
+    # Add edges between authors who posted in the SAME subreddit
+    # (co-participation network)
+    subreddit_authors = authors_df.groupby('subreddit')['author'].apply(list).to_dict()
+
+    edge_count = 0
+    for subreddit, auth_list in subreddit_authors.items():
+        # Only connect top authors per subreddit to avoid too many edges
+        top_in_sub = [a for a in auth_list if G.has_node(a)][:15]
+        for i in range(len(top_in_sub)):
+            for j in range(i + 1, len(top_in_sub)):
+                a1, a2 = top_in_sub[i], top_in_sub[j]
+                if G.has_node(a1) and G.has_node(a2):
+                    if G.has_edge(a1, a2):
+                        G[a1][a2]['weight'] += 1
+                        G[a1][a2]['shared_subreddits'] = G[a1][a2].get('shared_subreddits', []) + [subreddit]
+                    else:
+                        G.add_edge(a1, a2, weight=1, shared_subreddits=[subreddit])
+                        edge_count += 1
+
+    print(f"Graph: {len(G.nodes())} nodes, {len(G.edges())} edges")
 
     # PageRank
     pagerank = nx.pagerank(G, alpha=0.85, max_iter=100)
 
-    # Louvain community detection (on undirected version)
-    G_undirected = G.to_undirected()
-    if len(G_undirected.edges()) > 0:
-        partition = community_louvain.best_partition(G_undirected)
+    # Louvain community detection
+    if len(G.edges()) > 0:
+        partition = community_louvain.best_partition(G)
     else:
         partition = {node: 0 for node in G.nodes()}
 
-    # Betweenness centrality (top bridge nodes)
-    if len(G.nodes()) > 0:
-        betweenness = nx.betweenness_centrality(G, normalized=True)
-    else:
-        betweenness = {node: 0 for node in G.nodes()}
+    # Betweenness centrality
+    betweenness = nx.betweenness_centrality(G, normalized=True)
 
     # Assemble nodes
     nodes = []
@@ -92,7 +97,6 @@ def build_network():
             'betweenness': round(betweenness.get(node, 0), 6),
         })
 
-    # Sort by pagerank
     nodes.sort(key=lambda x: x['pagerank'], reverse=True)
 
     # Assemble edges
@@ -102,11 +106,11 @@ def build_network():
             'source': source,
             'target': target,
             'weight': data.get('weight', 1),
+            'shared_subreddits': data.get('shared_subreddits', []),
         })
 
-    # Summary stats
-    top_nodes = nodes[:5]
     num_communities = len(set(partition.values()))
+    top_nodes = nodes[:5]
 
     result = {
         'nodes': nodes,
@@ -116,8 +120,12 @@ def build_network():
             'total_edges': len(edges),
             'num_communities': num_communities,
             'top_influencers': [
-                {'author': n['author'], 'subreddit': n['subreddit'], 
-                 'pagerank': n['pagerank'], 'post_count': n['post_count']}
+                {
+                    'author': n['author'],
+                    'subreddit': n['subreddit'],
+                    'pagerank': n['pagerank'],
+                    'post_count': n['post_count']
+                }
                 for n in top_nodes
             ]
         }
@@ -132,4 +140,4 @@ if __name__ == '__main__':
     print(f"Communities: {result['stats']['num_communities']}")
     print("Top influencers by PageRank:")
     for n in result['stats']['top_influencers']:
-        print(f"  {n['author']} ({n['subreddit']}) — PageRank: {n['pagerank']}")
+        print(f"  {n['author']} ({n['subreddit']}) — PageRank: {n['pagerank']:.6f}")
