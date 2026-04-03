@@ -8,11 +8,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 # Run startup checks
+# Download pre-built files on first run
 import startup
-startup.download_data()
-startup.build_database()
-startup.build_embeddings()
-startup.build_clusters_cache()
+startup.download_all()
 
 app = FastAPI(title="NarrativeTrail API", version="1.0.0")
 
