@@ -20,7 +20,15 @@ export default function Home() {
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    axios.get(`${API}/api/stats`).then(r => setStats(r.data));
+    // Wake up backend and get stats
+    axios.get(`${API}/api/stats`).then(r => setStats(r.data)).catch(() => { });
+
+    // Keep backend warm - ping every 10 minutes
+    const interval = setInterval(() => {
+      axios.get(`${API}/api/health`).catch(() => { });
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -59,7 +67,7 @@ export default function Home() {
             </div>
 
             {/* Live Stats */}
-            {stats && (
+            {stats ? (
               <div className="flex gap-3">
                 {[
                   { label: 'Posts Analyzed', value: stats.total_posts?.toLocaleString(), color: '#60a5fa' },
@@ -73,6 +81,19 @@ export default function Home() {
                   }}>
                     <div className="text-xl font-bold" style={{ color: s.color }}>{s.value}</div>
                     <div className="text-xs" style={{ color: '#475569' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex gap-3">
+                {['Posts Analyzed', 'Unique Authors', 'Communities', 'Date Range'].map(label => (
+                  <div key={label} className="text-right px-4 py-2 rounded-lg" style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid #1e2d3d',
+                    minWidth: 100
+                  }}>
+                    <div className="text-xl font-bold" style={{ color: '#1e2d3d' }}>...</div>
+                    <div className="text-xs" style={{ color: '#475569' }}>{label}</div>
                   </div>
                 ))}
               </div>
@@ -133,7 +154,7 @@ export default function Home() {
         fontSize: 12
       }}>
         NarrativeTrail · Built for SimPPL Research Engineering Internship ·
-        Dataset: 8,567 Reddit posts across 10 political subreddits · Jul 2024 – Feb 2025
+        Dataset: 8,799 Reddit posts across 10 political subreddits · Jul 2024 – Feb 2025
       </div>
     </main>
   );
