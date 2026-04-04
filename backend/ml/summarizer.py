@@ -219,6 +219,7 @@ def fallback_cluster_summary(topic_info, nr_topics):
     valid = [t for t in topic_info if t['Topic'] != -1]
     if not valid:
         return "Clustering complete."
-    return (f"BERTopic identified {len(valid)} narrative clusters from 8,567 posts. "
-            f"Largest cluster: '{valid[0].get('Label', valid[0]['Name'])}' "
-            f"with {valid[0]['Count']} posts ({(valid[0]['Count']/8567*100):.1f}% of dataset).")
+    total = sum(t['Count'] for t in topic_info)
+    return (f"BERTopic identified {len(valid)} narrative clusters from {total} posts. "
+            f"Largest cluster: '{valid[0].get('Label', 'Unknown')}' "
+            f"with {valid[0]['Count']} posts ({(valid[0]['Count']/total*100):.1f}% of dataset).")
