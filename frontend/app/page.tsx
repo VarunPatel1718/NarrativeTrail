@@ -8,6 +8,7 @@ import Clusters from './components/Clusters';
 import Chatbot from './components/Chatbot';
 import KeyFindings from './components/KeyFindings';
 
+
 const API = process.env.NEXT_PUBLIC_API_URL;
 
 const TABS = [
@@ -117,6 +118,7 @@ export default function Home() {
               and how framing mutated across the ideological spectrum.
             </p>
           </div>
+          <KeyFindings />
 
           {/* Tabs */}
           <div className="flex gap-2">
