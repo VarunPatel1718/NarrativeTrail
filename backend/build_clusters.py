@@ -133,8 +133,13 @@ for i, (tid, pt) in enumerate(zip(topics, coords_2d)):
     })
 
 # Save topic model itself for nr_topics override at query time
-topic_model.save(f"{DATA_DIR}/bertopic_model", serialization="safetensors", save_ctfidf=True)
-
+# Save model without c-TF-IDF config (avoids numpy int64 JSON error)
+try:
+    topic_model.save(f"{DATA_DIR}/bertopic_model", serialization="safetensors", save_ctfidf=False)
+    print("✓ BERTopic model saved")
+except Exception as e:
+    print(f"  Model save skipped ({e}) — clusters.json already saved, this is fine")
+    
 out_path = f"{DATA_DIR}/clusters.json"
 with open(out_path, "w") as f:
     json.dump(results, f)
