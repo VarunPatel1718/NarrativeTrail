@@ -1,53 +1,34 @@
-"""
-embed.py
-Run FOURTH (~15 min on CPU). Embeds all posts with all-MiniLM-L6-v2,
-builds FAISS IndexFlatL2, saves faiss_index.pkl + post_ids.pkl + embeddings.npy.
-
-NOTE: Bug fix applied — np.load uses allow_pickle=True (required for numpy >= 1.17)
-"""
-import numpy as np, pandas as pd, faiss, os, pickle
+import numpy as np, pandas as pd, faiss, os
 from sentence_transformers import SentenceTransformer
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "../data")
-df_clean = pd.read_parquet(f"{DATA_DIR}/processed.parquet")
-df_clean = df_clean[~df_clean["is_spam"]].reset_index(drop=True)
-texts    = df_clean["text"].fillna("").tolist()
-post_ids = df_clean["id"].tolist()
+df = pd.read_parquet("../data/processed.parquet")
+df_clean = df[~df["is_spam"]].reset_index(drop=True)
+texts = df_clean["text"].fillna("").tolist()
 
 print(f"Embedding {len(texts)} posts (spam excluded)...")
-print("Expected time: ~12-15 minutes on CPU. Go get coffee.")
+print("This takes ~10-15 minutes on CPU. Start build_clusters.py review while waiting.")
 
-# Global model cache — prevents OOM on repeated calls in main.py
 model = SentenceTransformer("all-MiniLM-L6-v2")
-emb   = model.encode(
+emb = model.encode(
     texts,
     batch_size=64,
     show_progress_bar=True,
-    convert_to_numpy=True,
+    convert_to_numpy=True
 ).astype("float32")
 
-# Normalize for cosine similarity via L2 (IndexFlatL2 on normalized = cosine)
+# Normalize for cosine similarity via inner product
 faiss.normalize_L2(emb)
 
-# Build FAISS index
-index = faiss.IndexFlatL2(emb.shape[1])   # dim=384
+# Build index
+index = faiss.IndexFlatIP(emb.shape[1])
 index.add(emb)
 
 # Save
-with open(f"{DATA_DIR}/faiss_index.pkl", "wb") as f:
-    pickle.dump(index, f)
+faiss.write_index(index, "../data/faiss.index")
+np.save("../data/embeddings.npy", emb)
+df_clean[["id","title","subreddit","author","created_utc","score",
+          "num_comments","permalink","domain","ideological_bloc"]]\
+    .to_parquet("../data/search_meta.parquet", index=False)
 
-with open(f"{DATA_DIR}/post_ids.pkl", "wb") as f:
-    pickle.dump(post_ids, f)
-
-np.save(f"{DATA_DIR}/embeddings.npy", emb)
-
-# Lightweight search metadata for API responses
-df_clean[[
-    "id","title","subreddit","author","created_utc",
-    "score","num_comments","permalink","domain","ideological_bloc",
-]].to_parquet(f"{DATA_DIR}/search_meta.parquet", index=False)
-
-print(f"✓ FAISS index   : {index.ntotal} vectors, dim={emb.shape[1]}")
-print(f"✓ Saved         : faiss_index.pkl, post_ids.pkl, embeddings.npy, search_meta.parquet")
-print(f"✓ Output dir    : {DATA_DIR}/")
+print(f"FAISS index: {index.ntotal} vectors, shape: {emb.shape}")
+print("Saved: faiss.index, embeddings.npy, search_meta.parquet")
