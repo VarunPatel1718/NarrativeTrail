@@ -231,11 +231,10 @@ export default function TimeSeriesChart({ filters }) {
           flexWrap: "wrap", gap: "12px",
         }}>
           <div>
-            <p className="sec-title">Posting Timeline</p>
+            <p className="sec-title">Post Activity Over Time</p>
             <p className="sec-desc">
-              Weekly post volume across 10 communities, Jul 2024 – Feb 2025.
-              Vertical markers show key political events — switch to "By Bloc" to
-              see how each ideological group responded over time.
+              Post volume Jul 2024 – Feb 2025, with key political events marked.
+              Switch to "By Bloc" to compare ideological communities side by side.
             </p>
           </div>
 

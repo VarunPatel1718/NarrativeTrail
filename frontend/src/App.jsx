@@ -40,28 +40,6 @@ const NAV_ITEMS = [
     ),
   },
   {
-    id: "coordination", label: "Coordinated Amplification", dot: "#34d399",
-    desc: "Detect coordinated amplification campaigns",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-        <polyline points="22 4 12 14.01 9 11.01" />
-      </svg>
-    ),
-  },
-  {
-    id: "search", label: "Semantic Search", dot: "#fbbf24",
-    desc: "Semantic search across all posts",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="11" cy="11" r="8" />
-        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        <line x1="8" y1="11" x2="14" y2="11" />
-        <line x1="11" y1="8" x2="11" y2="14" />
-      </svg>
-    ),
-  },
-  {
     id: "timeseries", label: "Timeline", dot: "#fb923c",
     desc: "Post activity and event markers over time",
     icon: (
@@ -104,6 +82,28 @@ const NAV_ITEMS = [
         <line x1="17" y1="9.5" x2="16" y2="13.5" />
         <line x1="7" y1="13.5" x2="13.5" y2="15.5" />
         <line x1="17.5" y1="16" x2="19" y2="15.5" />
+      </svg>
+    ),
+  },
+  {
+    id: "coordination", label: "Coordination Detector", dot: "#34d399",
+    desc: "Detect coordinated amplification campaigns",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+        <polyline points="22 4 12 14.01 9 11.01" />
+      </svg>
+    ),
+  },
+  {
+    id: "search", label: "Semantic Search", dot: "#fbbf24",
+    desc: "Semantic search across all posts",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        <line x1="8" y1="11" x2="14" y2="11" />
+        <line x1="11" y1="8" x2="11" y2="14" />
       </svg>
     ),
   },

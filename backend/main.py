@@ -33,21 +33,7 @@ try:
 except Exception as e:
     AI_OK = False
     print(f"Groq AI not available: {e}")
-
-
-def claude(prompt, max_tokens=200):
-    """Call Claude API with fallback — never crashes."""
-    if not AI_OK: return "AI summary unavailable — API key not configured."
-    try:
-        r = ai.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=max_tokens,
-            messages=[{"role":"user","content":prompt}]
-        )
-        return r.content[0].text
-    except Exception as e:
-        return f"AI summary temporarily unavailable: {str(e)[:50]}"
-
+    
 # 1. Network JSON — pre-serialized
 _net_json = {
     "subreddit": json.dumps(net_sub),
@@ -117,6 +103,21 @@ _source_net_json = json.dumps({
     "edges": [e for e in net_src["edges"] if e.get("weight", 0) >= 3],
 })
 
+
+def claude(prompt, max_tokens=200):
+    if not AI_OK:
+        return "AI summary unavailable — Groq API key not configured."
+    try:
+        r = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return r.choices[0].message.content
+    except Exception as e:
+        return f"AI summary temporarily unavailable: {str(e)[:100]}"
+    
+    
 # 7. Timeseries — pre-computed for every subreddit × granularity combination
 #    This is the biggest win: pandas resample runs once at startup, not per request
 print("Pre-computing timeseries cache (all subreddits × granularities)...")
@@ -364,14 +365,14 @@ def velocity():
         "total": len(results)
     })
 
-# ── ENDPOINT 13: SUMMARIZE (Claude) ──────────────────────────────────────────
 @app.route("/api/summarize", methods=["POST"])
 def summarize():
-    d = request.json
-    ctype = d.get("type","timeseries")
-    data = d.get("data",[])
-    ctx = d.get("context","")
-    if not data: return jsonify({"summary":"No data available to summarize."})
+    d     = request.json
+    ctype = d.get("type", "timeseries")
+    data  = d.get("data", [])
+    ctx   = d.get("context", "")
+    if not data:
+        return jsonify({"summary": "No data available to summarize."})
     prompt = (
         f"You are analyzing NarrativeTracker Reddit political data.\n"
         f"Chart type: {ctype}. Context: {ctx}.\n"
@@ -382,13 +383,14 @@ def summarize():
     )
     return jsonify({"summary": claude(prompt, 200)})
 
-# ── ENDPOINT 14: SUGGEST QUERIES (Claude) ────────────────────────────────────
+# ── ENDPOINT 14: SUGGEST QUERIES ─────────────────────────────────────────────
 @app.route("/api/suggest_queries", methods=["POST"])
 def suggest_queries():
-    d = request.json
-    query = d.get("query","")
-    titles = [r.get("title","") for r in d.get("results",[])[:5]]
-    if not titles: return jsonify({"suggestions":[]})
+    d      = request.json
+    query  = d.get("query", "")
+    titles = [r.get("title", "") for r in d.get("results", [])[:5]]
+    if not titles:
+        return jsonify({"suggestions": []})
     prompt = (
         f'User searched NarrativeTracker for: "{query}"\n'
         f"Top results were about: {titles}\n"
@@ -397,11 +399,13 @@ def suggest_queries():
         f'Example: ["query one", "query two", "query three"]'
     )
     try:
-        text = claude(prompt, 100)
+        text = claude(prompt, 100).strip()
+        if not text.startswith("["):
+            text = text[text.find("["):text.rfind("]") + 1]
         suggestions = json.loads(text)
         return jsonify({"suggestions": suggestions[:3]})
-    except:
-        return jsonify({"suggestions":[]})
+    except Exception:
+        return jsonify({"suggestions": []})
 
 # ── ENDPOINT 15: NARRATIVE ANALYSIS (Claude) ─────────────────────────────────
 @app.route("/api/narrative_analysis", methods=["POST"])
