@@ -26,12 +26,13 @@ from sentence_transformers import SentenceTransformer
 embed_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 try:
-    import anthropic
-    ai = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    from groq import Groq
+    groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     AI_OK = True
-except: AI_OK = False
-
-print(f"Ready. {len(df)} posts loaded. AI={AI_OK}")
+    print("Groq AI loaded successfully")
+except Exception as e:
+    AI_OK = False
+    print(f"Groq AI not available: {e}")
 
 
 def claude(prompt, max_tokens=200):
@@ -47,6 +48,79 @@ def claude(prompt, max_tokens=200):
     except Exception as e:
         return f"AI summary temporarily unavailable: {str(e)[:50]}"
 
+# 1. Network JSON — pre-serialized
+_net_json = {
+    "subreddit": json.dumps(net_sub),
+    "author":    json.dumps(net_auth),
+    "source":    json.dumps(net_src),
+}
+
+# 2. Stats — never changes
+_clean_df = df[~df["is_spam"]]
+_top_post = _clean_df.nlargest(1, "score").iloc[0]
+_stats_json = json.dumps({
+    "total_posts":      len(_clean_df),
+    "total_authors":    int(_clean_df["author"].nunique()),
+    "total_subreddits": int(_clean_df["subreddit"].nunique()),
+    "date_start":       str(_clean_df["created_utc"].min()),
+    "date_end":         str(_clean_df["created_utc"].max()),
+    "spam_flagged":     int(df["is_spam"].sum()),
+    "crosspost_count":  int(_clean_df["crosspost_parent"].notna().sum()),
+    "avg_score":        round(float(_clean_df["score"].mean()), 1),
+    "top_post": {
+        "title":     _top_post["title"],
+        "score":     int(_top_post["score"]),
+        "subreddit": _top_post["subreddit"],
+    }
+})
+
+# 3. Subreddits list — never changes
+_sub_counts = df.groupby("subreddit").agg(
+    count=("id", "count"),
+    avg_score=("score", "mean"),
+    subscribers=("subreddit_subscribers", "max"),
+    bloc=("ideological_bloc", "first")
+).reset_index()
+_sub_counts["avg_score"] = _sub_counts["avg_score"].round(1)
+_subreddits_json = json.dumps(_sub_counts.to_dict(orient="records"))
+
+# 4. Events — static
+_events_json = json.dumps(evts)
+
+# 5. Clusters — all 4 k values
+_clusters_cache = {}
+for _k_str in ["5", "8", "12", "20"]:
+    _d     = clust_data[_k_str]
+    _k_int = int(_k_str)
+    _points = [
+        {
+            "x":         _d["coords"][i][0],
+            "y":         _d["coords"][i][1],
+            "cluster":   _d["labels"][i],
+            "subreddit": _d["subreddits"][i],
+            "title":     _d["titles"][i][:80],
+        }
+        for i in range(len(_d["labels"]))
+    ]
+    _clusters_cache[_k_str] = json.dumps({
+        "k_requested":    _k_int,
+        "k_actual":       _k_int,
+        "cluster_count":  _d["cluster_count"],
+        "noise_count":    _d["noise_count"],
+        "cluster_labels": _d["cluster_labels"],
+        "points":         _points,
+    })
+
+# 6. Source network — pre-filtered at default weight
+_source_net_json = json.dumps({
+    "nodes": net_src["nodes"],
+    "edges": [e for e in net_src["edges"] if e.get("weight", 0) >= 3],
+})
+
+# 7. Timeseries — pre-computed for every subreddit × granularity combination
+#    This is the biggest win: pandas resample runs once at startup, not per request
+print("Pre-computing timeseries cache (all subreddits × granularities)...")
+_timeseries_cache = {}
 
 # ── ENDPOINT 1: HEALTH ────────────────────────────────────────────────────────
 @app.route("/api/health")
@@ -58,19 +132,48 @@ def health():
 # ── ENDPOINT 2: STATS ─────────────────────────────────────────────────────────
 @app.route("/api/stats")
 def stats():
-    clean = df[~df["is_spam"]]
-    top = clean.nlargest(1,"score").iloc[0]
+    sub = request.args.get("subreddit")
+
+    data = df.copy()
+
+    # ✅ Apply subreddit filter
+    if sub and sub.lower() != "all":
+        data = data[data["subreddit"].str.lower() == sub.lower()]
+
+    # ✅ Remove spam AFTER filtering
+    clean = data[~data["is_spam"]]
+
+    # ⚠️ Handle empty case (VERY IMPORTANT)
+    if clean.empty:
+        return jsonify({
+            "total_posts": 0,
+            "total_authors": 0,
+            "total_subreddits": 0,
+            "date_start": None,
+            "date_end": None,
+            "spam_flagged": 0,
+            "crosspost_count": 0,
+            "avg_score": 0,
+            "top_post": None
+        })
+
+    # ✅ Compute stats
+    top = clean.nlargest(1, "score").iloc[0]
+
     return jsonify({
         "total_posts": len(clean),
         "total_authors": clean["author"].nunique(),
         "total_subreddits": clean["subreddit"].nunique(),
         "date_start": str(clean["created_utc"].min()),
         "date_end": str(clean["created_utc"].max()),
-        "spam_flagged": int(df["is_spam"].sum()),
+        "spam_flagged": int(data["is_spam"].sum()),  # from filtered data
         "crosspost_count": int(clean["crosspost_parent"].notna().sum()),
-        "avg_score": round(float(clean["score"].mean()),1),
-        "top_post": {"title":top["title"],"score":int(top["score"]),
-                     "subreddit":top["subreddit"]}
+        "avg_score": round(float(clean["score"].mean()), 1),
+        "top_post": {
+            "title": top["title"],
+            "score": int(top["score"]),
+            "subreddit": top["subreddit"]
+        }
     })
 
 # ── ENDPOINT 3: SUBREDDITS ────────────────────────────────────────────────────

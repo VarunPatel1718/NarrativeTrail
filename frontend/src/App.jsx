@@ -384,12 +384,10 @@ export default function App() {
             <div className="nt-hero">
               <span className="nt-eyebrow">SimPPL Research Engineering</span>
               <h1 className="nt-title">
-                Narrative<span className="nt-title-acc">Tracker</span>
+                Narrative<span className="nt-title-acc">Trail</span>
               </h1>
               <p className="nt-subtitle">
-                How did 10 politically distinct Reddit communities respond to
-                Trump&#8217;s return to power? Track narrative divergence,
-                propagation patterns, and coordination signals across the ideological spectrum.
+                One event. Ten communities. Completely different stories. Uncover how narratives evolve, spread, and collide across the political spectrum.
               </p>
               <div className="nt-meta-row">
                 {["8,799 posts", "10 communities", "Jul 2024 – Feb 2025", "4 ideological blocs"].map(function (t) {

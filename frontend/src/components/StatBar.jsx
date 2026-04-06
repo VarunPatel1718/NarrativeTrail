@@ -5,16 +5,16 @@ import { BLOC_COLORS } from "../App"
 const BASE = import.meta.env.VITE_API_URL || ""
 
 const SUBREDDIT_TO_BLOC = {
-  Anarchism:           "left_radical",
-  socialism:           "left_radical",
-  Liberal:             "center_left",
-  democrats:           "center_left",
-  politics:            "center_left",
-  neoliberal:          "center_left",
+  Anarchism: "left_radical",
+  socialism: "left_radical",
+  Liberal: "center_left",
+  democrats: "center_left",
+  politics: "center_left",
+  neoliberal: "center_left",
   PoliticalDiscussion: "center_left",
-  Conservative:        "right",
-  Republican:          "right",
-  worldpolitics:       "mixed",
+  Conservative: "right",
+  Republican: "right",
+  worldpolitics: "mixed",
 }
 
 // ── Single stat card ──────────────────────────────────────────────────────────
@@ -47,10 +47,10 @@ function StatCard({ label, value, sub, color, loading, children }) {
       transition: "border-color 0.2s",
       cursor: "default",
     }}
-      onMouseEnter={function(e) {
+      onMouseEnter={function (e) {
         e.currentTarget.style.borderColor = color || "var(--border-mid)"
       }}
-      onMouseLeave={function(e) {
+      onMouseLeave={function (e) {
         e.currentTarget.style.borderColor = color || "var(--border)"
         e.currentTarget.style.borderTopColor = color || "transparent"
       }}
@@ -95,17 +95,17 @@ export default function StatBar({ filters }) {
     : "all"
 
   const isFiltered = sub !== "all"
-  const blocColor  = isFiltered
+  const blocColor = isFiltered
     ? (BLOC_COLORS[SUBREDDIT_TO_BLOC[sub] || "other"] || "#4f8ef7")
     : null
 
   // ── Direct fetch with useEffect — bypasses any useApi caching issues ──────
   // This guarantees a fresh response whenever `sub` changes.
-  const [data,    setData]    = useState(null)
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(null)
+  const [error, setError] = useState(null)
 
-  useEffect(function() {
+  useEffect(function () {
     setLoading(true)
     setError(null)
 
@@ -114,31 +114,31 @@ export default function StatBar({ filters }) {
     axios.get(BASE + "/api/stats", {
       params: sub === "all" ? {} : { subreddit: sub },
     })
-      .then(function(res) {
+      .then(function (res) {
         if (cancelled) return
         setData(res.data)
         setLoading(false)
       })
-      .catch(function(err) {
+      .catch(function (err) {
         if (cancelled) return
         setError(err)
         setLoading(false)
       })
 
-    return function() { cancelled = true }
+    return function () { cancelled = true }
 
   }, [sub])  // re-fetches whenever subreddit selection changes
 
-  const fmt = function(n) {
+  const fmt = function (n) {
     return n != null ? n.toLocaleString() : "—"
   }
 
   const dateStart = data ? (data.date_start || "").slice(0, 10) : "—"
-  const dateEnd   = data ? (data.date_end   || "").slice(0, 10) : "—"
+  const dateEnd = data ? (data.date_end || "").slice(0, 10) : "—"
 
   const topTitle = data && data.top_post
     ? data.top_post.title.slice(0, 50) +
-      (data.top_post.title.length > 50 ? "..." : "")
+    (data.top_post.title.length > 50 ? "..." : "")
     : ""
 
   if (error) {
@@ -215,36 +215,6 @@ export default function StatBar({ filters }) {
           loading={loading}
         />
 
-        {/* Date Range */}
-        <StatCard
-          label="Date Range"
-          color={isFiltered ? blocColor : "var(--text-sec)"}
-          loading={loading}
-        >
-          {!loading && (
-            <div>
-              <p className="mono" style={{
-                fontSize: "13px", fontWeight: "600",
-                color: "var(--text-primary)", lineHeight: 1.6,
-              }}>
-                {dateStart}
-              </p>
-              <p style={{
-                fontSize: "9px", color: "var(--text-dim)",
-                textTransform: "uppercase", letterSpacing: "0.08em",
-                marginBottom: "2px",
-              }}>
-                to
-              </p>
-              <p className="mono" style={{
-                fontSize: "13px", fontWeight: "600",
-                color: "var(--text-primary)", lineHeight: 1.6,
-              }}>
-                {dateEnd}
-              </p>
-            </div>
-          )}
-        </StatCard>
 
         {/* Top Post Score */}
         <StatCard
@@ -310,8 +280,40 @@ export default function StatBar({ filters }) {
               </>
             )}
           </StatCard>
+
+
         )}
 
+        {/* Date Range */}
+        <StatCard
+          label="Date Range"
+          color={isFiltered ? blocColor : "var(--text-sec)"}
+          loading={loading}
+        >
+          {!loading && (
+            <div>
+              <p className="mono" style={{
+                fontSize: "13px", fontWeight: "600",
+                color: "var(--text-primary)", lineHeight: 1.6,
+              }}>
+                {dateStart}
+              </p>
+              <p style={{
+                fontSize: "9px", color: "var(--text-dim)",
+                textTransform: "uppercase", letterSpacing: "0.08em",
+                marginBottom: "2px",
+              }}>
+                to
+              </p>
+              <p className="mono" style={{
+                fontSize: "13px", fontWeight: "600",
+                color: "var(--text-primary)", lineHeight: 1.6,
+              }}>
+                {dateEnd}
+              </p>
+            </div>
+          )}
+        </StatCard>
       </div>
     </div>
   )

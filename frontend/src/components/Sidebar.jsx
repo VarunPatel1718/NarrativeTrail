@@ -4,9 +4,9 @@ import { BLOC_COLORS } from "../App"
 
 const BLOC_LABELS = {
   left_radical: "Left Radical",
-  center_left:  "Center Left",
-  right:        "Right",
-  mixed:        "Mixed",
+  center_left: "Center Left",
+  right: "Right",
+  mixed: "Mixed",
 }
 
 export default function Sidebar({ filters, onChange }) {
@@ -15,7 +15,7 @@ export default function Sidebar({ filters, onChange }) {
 
   const groups = {}
   if (data) {
-    data.forEach(function(s) {
+    data.forEach(function (s) {
       if (!groups[s.bloc]) groups[s.bloc] = []
       groups[s.bloc].push(s)
     })
@@ -23,50 +23,42 @@ export default function Sidebar({ filters, onChange }) {
 
   return (
     <div style={{
-      width: "232px", flexShrink: 0,
-      background: "var(--bg-surface)",
-      borderRight: "1px solid var(--border)",
-      display: "flex", flexDirection: "column",
-      overflowY: "auto", height: "100vh",
+      width: "192px",
+      flexShrink: 0,
+      background: "var(--bg-sidebar)",
+      borderRight: "1px solid var(--border-soft)",
+      display: "flex",
+      flexDirection: "column",
+      overflowY: "auto",
+      height: "100%",
+      boxSizing: "border-box",
     }}>
 
-      {/* Logo */}
+      {/* ── Header ── */}
       <div style={{
-        padding: "22px 20px 18px",
-        borderBottom: "1px solid var(--border)",
+        padding: "14px 14px 10px",
+        borderBottom: "1px solid var(--border-soft)",
+        flexShrink: 0,
       }}>
         <p style={{
-          fontSize: "13px", fontWeight: "700",
-          color: "var(--text-primary)",
-          letterSpacing: "-0.3px",
-          marginBottom: "2px",
+          fontSize: "9px", fontWeight: "700",
+          color: "var(--text-dim)",
+          textTransform: "uppercase", letterSpacing: "0.14em",
+          fontFamily: "var(--mono)", margin: 0,
         }}>
-          NarrativeTracker
-        </p>
-        <p style={{ fontSize: "10px", color: "var(--text-dim)" }}>
-          SimPPL · Reddit Political Analysis
+          Communities
         </p>
       </div>
 
-      <div style={{ padding: "16px 14px", flex: 1 }}>
-
-        <p style={{
-          fontSize: "9px", fontWeight: "600",
-          color: "var(--text-dim)",
-          textTransform: "uppercase", letterSpacing: "0.1em",
-          marginBottom: "10px", padding: "0 6px",
-        }}>
-          Filter by Subreddit
-        </p>
+      <div style={{ padding: "10px 10px 24px", flex: 1, boxSizing: "border-box" }}>
 
         {/* Loading */}
         {loading && (
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-            {[1,2,3,4,5,6].map(function(i) {
+            {[80, 100, 70, 100, 60, 100, 100, 75].map(function (w, i) {
               return (
-                <div
-                  key={i} className="skeleton"
-                  style={{ height: "24px", width: i % 3 === 0 ? "50%" : "100%" }}
+                <div key={i} className="skeleton"
+                  style={{ height: "22px", width: w + "%", borderRadius: "5px" }}
                 />
               )
             })}
@@ -74,159 +66,138 @@ export default function Sidebar({ filters, onChange }) {
         )}
 
         {error && !loading && (
-          <p style={{ fontSize: "12px", color: "var(--red)", padding: "0 6px" }}>
-            Failed to load
-          </p>
+          <p style={{ fontSize: "11px", color: "#f87171", padding: "6px" }}>Failed to load</p>
         )}
 
         {data && !loading && (
           <div>
-            {/* All */}
+
+            {/* ── All Communities ── */}
             <button
-              onClick={function() {
-                onChange(Object.assign({}, filters, { subreddit: "all" }))
-              }}
+              onClick={function () { onChange(Object.assign({}, filters, { subreddit: "all" })) }}
               style={{
                 width: "100%", textAlign: "left",
-                padding: "6px 10px",
-                borderRadius: "var(--r-sm)",
-                fontSize: "12px", fontWeight: "500",
-                border: "none", cursor: "pointer",
-                marginBottom: "12px",
-                background: filters.subreddit === "all"
-                  ? "rgba(79,142,247,0.1)"
-                  : "transparent",
-                color: filters.subreddit === "all"
-                  ? "#93bbfd"
-                  : "var(--text-sec)",
-                borderLeft: filters.subreddit === "all"
-                  ? "2px solid var(--blue)"
-                  : "2px solid transparent",
+                padding: "8px 10px", borderRadius: "7px",
+                fontSize: "12px", fontWeight: "600",
+                border: "1px solid", cursor: "pointer",
+                marginBottom: "14px",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                boxSizing: "border-box",
+                borderColor: filters.subreddit === "all" ? "rgba(99,102,241,0.55)" : "var(--border)",
+                background: filters.subreddit === "all" ? "rgba(99,102,241,0.13)" : "rgba(255,255,255,0.02)",
+                color: filters.subreddit === "all" ? "#a5b4fc" : "var(--text-sec)",
+                boxShadow: filters.subreddit === "all" ? "0 0 12px rgba(99,102,241,0.18)" : "none",
                 transition: "all 0.15s",
               }}
             >
-              All subreddits
+              <span style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                <span style={{
+                  width: "6px", height: "6px", borderRadius: "50%", flexShrink: 0,
+                  background: filters.subreddit === "all" ? "#818cf8" : "var(--text-dim)",
+                  boxShadow: filters.subreddit === "all" ? "0 0 6px #818cf8" : "none",
+                  transition: "all 0.15s",
+                }} />
+                All Communities
+              </span>
+              <span style={{
+                fontFamily: "var(--mono)", fontSize: "10px",
+                color: filters.subreddit === "all" ? "#818cf8" : "var(--text-dim)",
+              }}>
+                {data.reduce(function (acc, s) { return acc + (s.count || 0) }, 0).toLocaleString()}
+              </span>
             </button>
 
-            {/* Groups */}
-            {Object.entries(groups).map(function(entry) {
-              const bloc      = entry[0]
-              const subs      = entry[1]
-              const blocColor = BLOC_COLORS[bloc] || "#6b7280"
+            {/* ── Bloc groups ── */}
+            {Object.entries(groups).map(function (entry) {
+              const bloc = entry[0]
+              const subs = entry[1]
+              const color = BLOC_COLORS[bloc] || "#6b7280"
+              const label = BLOC_LABELS[bloc] || bloc
 
               return (
-                <div key={bloc} style={{ marginBottom: "16px" }}>
-                  <p style={{
-                    fontSize: "9px", fontWeight: "700",
-                    textTransform: "uppercase", letterSpacing: "0.1em",
-                    color: blocColor,
-                    padding: "0 10px",
-                    marginBottom: "4px",
-                  }}>
-                    {BLOC_LABELS[bloc] || bloc}
-                  </p>
+                <div key={bloc} style={{ marginBottom: "10px" }}>
 
-                  {subs.map(function(s) {
-                    const isActive = filters.subreddit === s.subreddit
-                    return (
-                      <button
-                        key={s.subreddit}
-                        onClick={function() {
-                          onChange(Object.assign({}, filters, { subreddit: s.subreddit }))
-                        }}
-                        style={{
-                          width: "100%", textAlign: "left",
-                          padding: "5px 10px",
-                          borderRadius: "var(--r-sm)",
-                          fontSize: "12px",
-                          marginBottom: "1px",
-                          border: "none", cursor: "pointer",
-                          display: "flex", justifyContent: "space-between",
-                          alignItems: "center",
-                          borderLeft: isActive
-                            ? "2px solid " + blocColor
-                            : "2px solid transparent",
-                          background: isActive
-                            ? blocColor + "10"
-                            : "transparent",
-                          color: isActive
-                            ? "var(--text-primary)"
-                            : "var(--text-sec)",
-                          transition: "all 0.12s",
-                        }}
-                        onMouseEnter={function(e) {
-                          if (!isActive) {
-                            e.currentTarget.style.background = "rgba(255,255,255,0.03)"
-                            e.currentTarget.style.color = "var(--text-primary)"
-                          }
-                        }}
-                        onMouseLeave={function(e) {
-                          if (!isActive) {
-                            e.currentTarget.style.background = "transparent"
-                            e.currentTarget.style.color = "var(--text-sec)"
-                          }
-                        }}
-                      >
-                        <span>{"r/" + s.subreddit}</span>
-                        <span className="mono" style={{
-                          fontSize: "10px",
-                          color: isActive ? blocColor : "var(--text-dim)",
-                        }}>
-                          {s.count.toLocaleString()}
-                        </span>
-                      </button>
-                    )
-                  })}
+                  {/* Bloc header */}
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: "5px",
+                    padding: "3px 6px 5px",
+                  }}>
+                    <span style={{
+                      width: "5px", height: "5px", borderRadius: "50%", flexShrink: 0,
+                      background: color,
+                      boxShadow: "0 0 5px " + color + "90",
+                    }} />
+                    <span style={{
+                      fontSize: "8px", fontWeight: "700",
+                      textTransform: "uppercase", letterSpacing: "0.13em",
+                      color: color, fontFamily: "var(--mono)",
+                    }}>
+                      {label}
+                    </span>
+                  </div>
+
+                  {/* Subreddits — indented with bloc-colored left border */}
+                  <div style={{
+                    borderLeft: "1.5px solid " + color + "35",
+                    marginLeft: "7px",
+                    paddingLeft: "8px",
+                  }}>
+                    {subs.map(function (s) {
+                      const active = filters.subreddit === s.subreddit
+                      return (
+                        <button
+                          key={s.subreddit}
+                          onClick={function () {
+                            onChange(Object.assign({}, filters, { subreddit: s.subreddit }))
+                          }}
+                          style={{
+                            width: "100%", textAlign: "left",
+                            padding: "5px 8px", borderRadius: "5px",
+                            fontSize: "12px", fontWeight: active ? "600" : "400",
+                            marginBottom: "1px",
+                            border: "1px solid",
+                            borderColor: active ? color + "55" : "transparent",
+                            cursor: "pointer",
+                            display: "flex", justifyContent: "space-between", alignItems: "center",
+                            boxSizing: "border-box",
+                            background: active ? color + "14" : "transparent",
+                            color: active ? "var(--text-primary)" : "var(--text-sec)",
+                            boxShadow: active ? "0 0 8px " + color + "18" : "none",
+                            transition: "all 0.12s",
+                          }}
+                          onMouseEnter={function (e) {
+                            if (!active) {
+                              e.currentTarget.style.background = color + "0c"
+                              e.currentTarget.style.color = "var(--text-primary)"
+                              e.currentTarget.style.borderColor = color + "28"
+                            }
+                          }}
+                          onMouseLeave={function (e) {
+                            if (!active) {
+                              e.currentTarget.style.background = "transparent"
+                              e.currentTarget.style.color = "var(--text-sec)"
+                              e.currentTarget.style.borderColor = "transparent"
+                            }
+                          }}
+                        >
+                          <span>{s.subreddit}</span>
+                          <span style={{
+                            fontFamily: "var(--mono)", fontSize: "10px",
+                            color: active ? color : "var(--text-dim)",
+                          }}>
+                            {(s.count || 0).toLocaleString()}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               )
             })}
           </div>
         )}
 
-        {/* Granularity */}
-        <div style={{ marginTop: "8px", marginBottom: "16px" }}>
-          <p style={{
-            fontSize: "9px", fontWeight: "600",
-            color: "var(--text-dim)",
-            textTransform: "uppercase", letterSpacing: "0.1em",
-            marginBottom: "8px", padding: "0 6px",
-          }}>
-            Time Granularity
-          </p>
-          <div style={{
-            display: "flex", gap: "2px",
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--r-sm)",
-            padding: "3px",
-          }}>
-            {["day", "week", "month"].map(function(g) {
-              const isActive = filters.granularity === g
-              return (
-                <button
-                  key={g}
-                  onClick={function() {
-                    onChange(Object.assign({}, filters, { granularity: g }))
-                  }}
-                  style={{
-                    flex: 1, padding: "5px 0",
-                    borderRadius: "4px",
-                    fontSize: "11px", fontWeight: "500",
-                    border: "none", cursor: "pointer",
-                    background: isActive ? "rgba(79,142,247,0.18)" : "transparent",
-                    color: isActive ? "#93bbfd" : "var(--text-dim)",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {g}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
         <WorldPoliticsWarning visible={showWPWarning} />
-
       </div>
     </div>
   )
