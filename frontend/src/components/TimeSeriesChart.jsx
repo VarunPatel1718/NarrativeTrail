@@ -23,7 +23,7 @@ function CustomTooltip({ active, payload, label }) {
       }}>
         {label ? label.slice(0, 10) : ""}
       </p>
-      {payload.map(function(p, i) {
+      {payload.map(function (p, i) {
         return (
           <p key={i} style={{
             fontSize: "12px", color: p.color,
@@ -62,18 +62,18 @@ function EventLabel({ viewBox, event }) {
 // ── Event type colors ─────────────────────────────────────────────────────────
 function getEventColor(type) {
   const map = {
-    election:      "#f87171",
-    inauguration:  "#c084fc",
-    policy:        "#4f8ef7",
+    election: "#f87171",
+    inauguration: "#c084fc",
+    policy: "#4f8ef7",
   }
   return map[type] || "#fbbf24"
 }
 
 function getEventLabel(type) {
   const map = {
-    election:     "Election",
+    election: "Election",
     inauguration: "Inauguration",
-    policy:       "Policy",
+    policy: "Policy",
   }
   return map[type] || "Event"
 }
@@ -103,7 +103,7 @@ function EventsGrid({ events }) {
 
         {/* Legend */}
         <div style={{ display: "flex", gap: "10px" }}>
-          {["election", "inauguration", "policy"].map(function(t) {
+          {["election", "inauguration", "policy"].map(function (t) {
             return (
               <div key={t} style={{
                 display: "flex", alignItems: "center", gap: "4px",
@@ -131,7 +131,7 @@ function EventsGrid({ events }) {
         gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
         gap: "6px",
       }}>
-        {events.map(function(ev, i) {
+        {events.map(function (ev, i) {
           const color = getEventColor(ev.type)
           return (
             <div key={i} style={{
@@ -195,9 +195,9 @@ function EventsGrid({ events }) {
 export default function TimeSeriesChart({ filters }) {
   const [mode, setMode] = useState("all")
 
-  const { data: tsData,    loading: tsLoading,    error: tsError    } =
+  const { data: tsData, loading: tsLoading, error: tsError } =
     useApi("/api/timeseries", {
-      subreddit:   filters.subreddit,
+      subreddit: filters.subreddit,
       granularity: filters.granularity,
     })
 
@@ -206,15 +206,15 @@ export default function TimeSeriesChart({ filters }) {
 
   const { data: events } = useApi("/api/events")
 
-  const loading  = mode === "all" ? tsLoading    : blocsLoading
-  const error    = mode === "all" ? tsError      : blocsError
-  const aiData   = mode === "all"
+  const loading = mode === "all" ? tsLoading : blocsLoading
+  const error = mode === "all" ? tsError : blocsError
+  const aiData = mode === "all"
     ? tsData
     : (blocsData ? Object.values(blocsData).flat() : null)
-  const context  = mode === "all"
+  const context = mode === "all"
     ? "subreddit: " + filters.subreddit + ", granularity: " + filters.granularity
     : "ideological blocs comparison, granularity: " + filters.granularity
-  const hasData  = mode === "all"
+  const hasData = mode === "all"
     ? tsData && tsData.length > 0
     : blocsData && Object.keys(blocsData).length > 0
 
@@ -231,10 +231,11 @@ export default function TimeSeriesChart({ filters }) {
           flexWrap: "wrap", gap: "12px",
         }}>
           <div>
-            <p className="sec-title">Post Activity Over Time</p>
+            <p className="sec-title">Posting Timeline</p>
             <p className="sec-desc">
-              Post volume Jul 2024 – Feb 2025, with key political events marked.
-              Switch to "By Bloc" to compare ideological communities side by side.
+              Weekly post volume across 10 communities, Jul 2024 – Feb 2025.
+              Vertical markers show key political events — switch to "By Bloc" to
+              see how each ideological group responded over time.
             </p>
           </div>
 
@@ -248,14 +249,14 @@ export default function TimeSeriesChart({ filters }) {
             flexShrink: 0,
           }}>
             {[
-              { key: "all",   label: "All Posts" },
-              { key: "blocs", label: "By Bloc"   },
-            ].map(function(m) {
+              { key: "all", label: "All Posts" },
+              { key: "blocs", label: "By Bloc" },
+            ].map(function (m) {
               const isActive = mode === m.key
               return (
                 <button
                   key={m.key}
-                  onClick={function() { setMode(m.key) }}
+                  onClick={function () { setMode(m.key) }}
                   style={{
                     padding: "5px 14px",
                     borderRadius: "6px",
@@ -338,7 +339,7 @@ export default function TimeSeriesChart({ filters }) {
                 <XAxis
                   dataKey="created_utc"
                   tick={axisStyle}
-                  tickFormatter={function(v) { return v ? v.slice(0, 10) : "" }}
+                  tickFormatter={function (v) { return v ? v.slice(0, 10) : "" }}
                   interval="preserveStartEnd"
                   axisLine={{ stroke: "var(--border)" }}
                   tickLine={false}
@@ -359,7 +360,7 @@ export default function TimeSeriesChart({ filters }) {
                   name="Posts"
                   activeDot={{ r: 4, fill: "#4f8ef7" }}
                 />
-                {events && events.map(function(ev, i) {
+                {events && events.map(function (ev, i) {
                   const color = getEventColor(ev.type)
                   return (
                     <ReferenceLine
@@ -396,7 +397,7 @@ export default function TimeSeriesChart({ filters }) {
                 <XAxis
                   dataKey="created_utc"
                   tick={axisStyle}
-                  tickFormatter={function(v) { return v ? v.slice(0, 10) : "" }}
+                  tickFormatter={function (v) { return v ? v.slice(0, 10) : "" }}
                   allowDuplicatedCategory={false}
                   axisLine={{ stroke: "var(--border)" }}
                   tickLine={false}
@@ -414,12 +415,12 @@ export default function TimeSeriesChart({ filters }) {
                     paddingTop: "10px",
                     color: "var(--text-sec)",
                   }}
-                  formatter={function(value) {
+                  formatter={function (value) {
                     return value.replace("_", " ")
                   }}
                 />
-                {Object.entries(blocsData).map(function(entry) {
-                  const bloc  = entry[0]
+                {Object.entries(blocsData).map(function (entry) {
+                  const bloc = entry[0]
                   const bdata = entry[1]
                   return (
                     <Line
