@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import pandas as pd, numpy as np, faiss, json, os
+import pandas as pd, numpy as np, faiss, json, os, pickle
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,19 +8,38 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:5173", "http://localhost:3000", "*.vercel.app"])
 
-DATA = "../data"
+# ── FIX 1: Absolute path — works both locally AND on HF Spaces ───────────────
+# Go up one level from backend/ to NarrativeTrail/, then into data/
+DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+DATA = os.path.normpath(DATA)
 
 # ── LOAD ALL DATA AT STARTUP ─────────────────────────────────────────────────
 print("Loading data files...")
-df = pd.read_parquet(f"{DATA}/processed.parquet")
+df   = pd.read_parquet(f"{DATA}/processed.parquet")
 meta = pd.read_parquet(f"{DATA}/search_meta.parquet")
-index = faiss.read_index(f"{DATA}/faiss.index")
 
-with open(f"{DATA}/network_subreddit.json") as f: net_sub = json.load(f)
-with open(f"{DATA}/network_author.json") as f: net_auth = json.load(f)
-with open(f"{DATA}/network_source.json") as f: net_src = json.load(f)
-with open(f"{DATA}/events.json") as f: evts = json.load(f)
-with open(f"{DATA}/clusters.json") as f: clust_data = json.load(f)
+# ── FIX 2: Load FAISS — supports both faiss.index and faiss_index.pkl ────────
+_faiss_pkl = f"{DATA}/faiss_index.pkl"
+_faiss_bin = f"{DATA}/faiss.index"
+if os.path.exists(_faiss_pkl):
+    with open(_faiss_pkl, "rb") as f:
+        index = pickle.load(f)
+else:
+    index = faiss.read_index(_faiss_bin)
+
+# ── FIX 3: Load post_ids — falls back to search_meta if pkl missing ───────────
+_post_ids_pkl = f"{DATA}/post_ids.pkl"
+if os.path.exists(_post_ids_pkl):
+    with open(_post_ids_pkl, "rb") as f:
+        _post_ids = pickle.load(f)
+else:
+    _post_ids = meta["id"].tolist()
+
+with open(f"{DATA}/network_subreddit.json") as f: net_sub    = json.load(f)
+with open(f"{DATA}/network_author.json")    as f: net_auth   = json.load(f)
+with open(f"{DATA}/network_source.json")    as f: net_src    = json.load(f)
+with open(f"{DATA}/events.json")            as f: evts       = json.load(f)
+with open(f"{DATA}/clusters.json")          as f: clust_data = json.load(f)
 
 from sentence_transformers import SentenceTransformer
 embed_model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -33,7 +52,7 @@ try:
 except Exception as e:
     AI_OK = False
     print(f"Groq AI not available: {e}")
-    
+
 # 1. Network JSON — pre-serialized
 _net_json = {
     "subreddit": json.dumps(net_sub),
@@ -116,10 +135,9 @@ def claude(prompt, max_tokens=200):
         return r.choices[0].message.content
     except Exception as e:
         return f"AI summary temporarily unavailable: {str(e)[:100]}"
-    
-    
+
+
 # 7. Timeseries — pre-computed for every subreddit × granularity combination
-#    This is the biggest win: pandas resample runs once at startup, not per request
 print("Pre-computing timeseries cache (all subreddits × granularities)...")
 _timeseries_cache = {}
 
@@ -134,45 +152,29 @@ def health():
 @app.route("/api/stats")
 def stats():
     sub = request.args.get("subreddit")
-
     data = df.copy()
-
-    # ✅ Apply subreddit filter
     if sub and sub.lower() != "all":
         data = data[data["subreddit"].str.lower() == sub.lower()]
-
-    # ✅ Remove spam AFTER filtering
     clean = data[~data["is_spam"]]
-
-    # ⚠️ Handle empty case (VERY IMPORTANT)
     if clean.empty:
         return jsonify({
-            "total_posts": 0,
-            "total_authors": 0,
-            "total_subreddits": 0,
-            "date_start": None,
-            "date_end": None,
-            "spam_flagged": 0,
-            "crosspost_count": 0,
-            "avg_score": 0,
-            "top_post": None
+            "total_posts": 0, "total_authors": 0, "total_subreddits": 0,
+            "date_start": None, "date_end": None, "spam_flagged": 0,
+            "crosspost_count": 0, "avg_score": 0, "top_post": None
         })
-
-    # ✅ Compute stats
     top = clean.nlargest(1, "score").iloc[0]
-
     return jsonify({
-        "total_posts": len(clean),
-        "total_authors": clean["author"].nunique(),
+        "total_posts":      len(clean),
+        "total_authors":    clean["author"].nunique(),
         "total_subreddits": clean["subreddit"].nunique(),
-        "date_start": str(clean["created_utc"].min()),
-        "date_end": str(clean["created_utc"].max()),
-        "spam_flagged": int(data["is_spam"].sum()),  # from filtered data
-        "crosspost_count": int(clean["crosspost_parent"].notna().sum()),
-        "avg_score": round(float(clean["score"].mean()), 1),
+        "date_start":       str(clean["created_utc"].min()),
+        "date_end":         str(clean["created_utc"].max()),
+        "spam_flagged":     int(data["is_spam"].sum()),
+        "crosspost_count":  int(clean["crosspost_parent"].notna().sum()),
+        "avg_score":        round(float(clean["score"].mean()), 1),
         "top_post": {
-            "title": top["title"],
-            "score": int(top["score"]),
+            "title":     top["title"],
+            "score":     int(top["score"]),
             "subreddit": top["subreddit"]
         }
     })
@@ -191,8 +193,8 @@ def subreddits():
 # ── ENDPOINT 4: TIMESERIES ────────────────────────────────────────────────────
 @app.route("/api/timeseries")
 def timeseries():
-    sub = request.args.get("subreddit","all")
-    gran = request.args.get("granularity","week")
+    sub      = request.args.get("subreddit","all")
+    gran     = request.args.get("granularity","week")
     inc_spam = request.args.get("include_spam","false")=="true"
     data = df.copy()
     if not inc_spam: data = data[~data["is_spam"]]
@@ -228,13 +230,13 @@ def events(): return jsonify(evts)
 # ── ENDPOINT 7: TOP DOMAINS ───────────────────────────────────────────────────
 @app.route("/api/topdomain")
 def topdomain():
-    sub = request.args.get("subreddit","all")
+    sub  = request.args.get("subreddit","all")
     data = df[~df["is_self_post"] & (df["domain"]!="") & ~df["is_spam"]].copy()
     if sub != "all": data = data[data["subreddit"]==sub]
     counts = data["domain"].value_counts().head(15).reset_index()
     counts.columns = ["domain","count"]
-    L={"theguardian.com","nytimes.com","huffpost.com"}
-    R={"foxnews.com","breitbart.com","nypost.com","townhall.com"}
+    L = {"theguardian.com","nytimes.com","huffpost.com"}
+    R = {"foxnews.com","breitbart.com","nypost.com","townhall.com"}
     counts["bias"] = counts["domain"].apply(
         lambda d: "left" if d in L else "right" if d in R else "center")
     return jsonify(counts.to_dict(orient="records"))
@@ -242,11 +244,11 @@ def topdomain():
 # ── ENDPOINT 8: NETWORK ───────────────────────────────────────────────────────
 @app.route("/api/network")
 def network():
-    ntype = request.args.get("type","subreddit")
-    remove = request.args.get("remove_node",None)
+    ntype  = request.args.get("type","subreddit")
+    remove = request.args.get("remove_node", None)
     if ntype=="subreddit": base = net_sub
-    elif ntype=="author": base = net_auth
-    else: base = net_src
+    elif ntype=="author":  base = net_auth
+    else:                  base = net_src
     if remove:
         data = {
             "nodes": [n for n in base["nodes"] if n["id"]!=remove],
@@ -260,9 +262,9 @@ def network():
 # ── ENDPOINT 9: SEMANTIC SEARCH ───────────────────────────────────────────────
 @app.route("/api/search")
 def search():
-    q = request.args.get("q","").strip()
-    lim = min(int(request.args.get("limit",20)),50)
-    sub = request.args.get("subreddit","all")
+    q    = request.args.get("q","").strip()
+    lim  = min(int(request.args.get("limit",20)),50)
+    sub  = request.args.get("subreddit","all")
     bloc = request.args.get("bloc","all")
 
     if not q or len(q) < 2:
@@ -276,7 +278,7 @@ def search():
     results = meta.iloc[I[0]].copy()
     results["similarity"] = D[0]
     results = results[results["similarity"] > 0.2]
-    if sub != "all": results = results[results["subreddit"]==sub]
+    if sub  != "all": results = results[results["subreddit"]==sub]
     if bloc != "all": results = results[results["ideological_bloc"]==bloc]
     results = results.head(lim)
     results["created_utc"] = results["created_utc"].astype(str)
@@ -287,15 +289,15 @@ def search():
 # ── ENDPOINT 10: CLUSTERS ─────────────────────────────────────────────────────
 @app.route("/api/clusters")
 def clusters():
-    k = int(request.args.get("k",8))
+    k         = int(request.args.get("k",8))
     available = [5,8,12,20]
-    k_actual = min(available, key=lambda x: abs(x-k))
-    d = clust_data[str(k_actual)]
+    k_actual  = min(available, key=lambda x: abs(x-k))
+    d         = clust_data[str(k_actual)]
     return jsonify({
-        "k_requested": k,
-        "k_actual": k_actual,
-        "cluster_count": d["cluster_count"],
-        "noise_count": d["noise_count"],
+        "k_requested":    k,
+        "k_actual":       k_actual,
+        "cluster_count":  d["cluster_count"],
+        "noise_count":    d["noise_count"],
         "cluster_labels": d["cluster_labels"],
         "points": [{"x":d["coords"][i][0],"y":d["coords"][i][1],
                     "cluster":d["labels"][i],"title":d["titles"][i],
@@ -357,14 +359,15 @@ def velocity():
                 .size().reset_index(name="count"))
 
     return jsonify({
-        "query": q,
+        "query":       q,
         "first_mover": first_per_sub.iloc[0]["subreddit"],
         "first_posts": first_per_sub[["subreddit","title","created_utc","similarity"]]
                        .to_dict(orient="records"),
-        "timeline": timeline.to_dict(orient="records"),
-        "total": len(results)
+        "timeline":    timeline.to_dict(orient="records"),
+        "total":       len(results)
     })
 
+# ── ENDPOINT 13: SUMMARIZE ────────────────────────────────────────────────────
 @app.route("/api/summarize", methods=["POST"])
 def summarize():
     d     = request.json
@@ -407,14 +410,15 @@ def suggest_queries():
     except Exception:
         return jsonify({"suggestions": []})
 
-# ── ENDPOINT 15: NARRATIVE ANALYSIS (Claude) ─────────────────────────────────
+# ── ENDPOINT 15: NARRATIVE ANALYSIS ──────────────────────────────────────────
 @app.route("/api/narrative_analysis", methods=["POST"])
 def narrative_analysis():
     blocs = request.json.get("blocs",{})
     query = request.json.get("query","")
     parts = {b:[p.get("title","") for p in posts]
              for b,posts in blocs.items() if posts}
-    if not parts: return jsonify({"analysis":"No posts found to analyze."})
+    if not parts:
+        return jsonify({"analysis":"No posts found to analyze."})
     prompt = (
         f"You are a political narrative analyst for NarrativeTracker.\n"
         f'Topic: "{query}"\n'
@@ -429,7 +433,7 @@ def narrative_analysis():
 @app.route("/api/source_network")
 def source_network():
     min_w = int(request.args.get("min_weight",3))
-    data = dict(net_src)
+    data  = dict(net_src)
     data["edges"] = [e for e in data["edges"] if e.get("weight",0)>=min_w]
     return jsonify(data)
 
@@ -464,13 +468,12 @@ def propagation():
 
     return jsonify({"query": q, "posts": posts, "subreddits": subreddits})
 
-
 # ── ENDPOINT 18: COORDINATED AMPLIFICATION ────────────────────────────────────
 @app.route("/api/coordinated")
 def coordinated():
-    q = request.args.get("q", "").strip()
+    q            = request.args.get("q", "").strip()
     window_hours = int(request.args.get("window_hours", 6))
-    min_authors = int(request.args.get("min_authors", 3))
+    min_authors  = int(request.args.get("min_authors", 3))
 
     if not q or len(q) < 2:
         return jsonify({"error": "Query too short", "events": []})
@@ -499,7 +502,7 @@ def coordinated():
         i = 0
         while i < len(sub_posts):
             window_end = sub_posts.iloc[i]["created_utc"] + window
-            cluster = sub_posts[
+            cluster    = sub_posts[
                 (sub_posts["created_utc"] >= sub_posts.iloc[i]["created_utc"]) &
                 (sub_posts["created_utc"] <= window_end)
             ]
@@ -508,14 +511,14 @@ def coordinated():
                 cluster_copy = cluster.copy()
                 cluster_copy["created_utc"] = cluster_copy["created_utc"].astype(str)
                 events.append({
-                    "subreddit": sub,
-                    "bloc": sub_posts.iloc[0]["ideological_bloc"],
-                    "window_start": str(sub_posts.iloc[i]["created_utc"]),
-                    "window_end": str(window_end),
-                    "post_count": len(cluster),
-                    "unique_authors": int(unique_authors),
-                    "posts": cluster_copy[["title","created_utc","similarity"]].head(5).to_dict(orient="records"),
-                    "intensity": round(len(cluster) / window_hours, 2)
+                    "subreddit":     sub,
+                    "bloc":          sub_posts.iloc[0]["ideological_bloc"],
+                    "window_start":  str(sub_posts.iloc[i]["created_utc"]),
+                    "window_end":    str(window_end),
+                    "post_count":    len(cluster),
+                    "unique_authors":int(unique_authors),
+                    "posts":         cluster_copy[["title","created_utc","similarity"]].head(5).to_dict(orient="records"),
+                    "intensity":     round(len(cluster) / window_hours, 2)
                 })
                 i += len(cluster)
             else:
@@ -523,11 +526,40 @@ def coordinated():
 
     events.sort(key=lambda x: x["post_count"], reverse=True)
     return jsonify({
-        "query": q,
+        "query":        q,
         "window_hours": window_hours,
-        "events": events[:20],
-        "total_posts": len(results)
+        "events":       events[:20],
+        "total_posts":  len(results)
     })
+
+# ── ENDPOINT 19: FINDINGS ─────────────────────────────────────────────────────
+@app.route("/api/findings")
+def findings():
+    c = df[~df["is_spam"]].copy()
+    c["created_utc"] = pd.to_datetime(c["created_utc"])
+    ew  = c[(c["created_utc"] >= "2024-11-04") & (c["created_utc"] <= "2024-11-10")]
+    pre = c[c["created_utc"] < "2024-11-04"]
+    avg = pre.groupby(pd.Grouper(key="created_utc", freq="W")).size().mean()
+    spk = round(len(ew) / max(avg, 1), 1)
+    im  = c[c["title"].str.contains("immigration|border|migrant", case=False, na=False)]
+    ts  = im["subreddit"].value_counts().index[0] if len(im) else "politics"
+    tn  = int(im["subreddit"].value_counts().iloc[0]) if len(im) else 0
+    cr  = int((c.groupby("author")["subreddit"].nunique() >= 3).sum())
+    return jsonify({"findings": [
+        {"id": "election_spike", "stat": f"{spk}×",
+         "headline": f"Post volume spiked {spk}× in Election Week",
+         "detail": f"Nov 4–10, 2024 saw {len(ew)} posts vs avg {avg:.0f}/week before.",
+         "link_view": "timeline", "link_query": "election"},
+        {"id": "immigration", "stat": str(tn),
+         "headline": f"r/{ts} led immigration discourse with {tn} posts",
+         "detail": f"r/{ts} posted the most immigration/border/migrant content.",
+         "link_view": "timeline", "link_query": "immigration"},
+        {"id": "bridges", "stat": str(cr),
+         "headline": f"{cr} authors posted across 3+ communities",
+         "detail": "Bridge authors whose posts span ideologically distinct subreddits.",
+         "link_view": "network", "link_query": ""},
+    ]})
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

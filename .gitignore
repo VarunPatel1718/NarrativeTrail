@@ -1,11 +1,16 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+venv/
+
+# Environment
 .env
 .env.local
-venv/
+
+# Node
 node_modules/
-*.db
-*.pkl
-*.npy
 .next/
-data.jsonl
+
+# Database
+*.db

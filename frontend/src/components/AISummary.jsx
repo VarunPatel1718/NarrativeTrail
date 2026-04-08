@@ -6,18 +6,22 @@ const BASE = import.meta.env.VITE_API_URL || ""
 export default function AISummary({ type, data, context }) {
   const [summary, setSummary] = useState("")
   const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(false)
+  const [error, setError] = useState(false)
   const prevKeyRef = useRef(null)
 
-  useEffect(function() {
-    if (!data || !data.length) {
+  useEffect(function () {
+    const dataLen = Array.isArray(data)
+      ? data.length
+      : (data && typeof data === "object" ? Object.keys(data).length : 0)
+
+    if (!data || dataLen === 0) {
       setLoading(false)
       return
     }
 
-    // Build a stable key from actual data content
-    var key = type + "|" + JSON.stringify(data.slice(0, 3))
-    if (key === prevKeyRef.current) return  // same data — skip
+    const keySource = Array.isArray(data) ? data.slice(0, 3) : data
+    const key = type + "|" + JSON.stringify(keySource)
+    if (key === prevKeyRef.current) return
     prevKeyRef.current = key
 
     var cancelled = false
@@ -27,25 +31,30 @@ export default function AISummary({ type, data, context }) {
 
     axios.post(BASE + "/api/summarize", {
       type,
-      data:    data.slice(0, 30),
+      data: Array.isArray(data) ? data.slice(0, 30) : data,
       context: context || "",
     })
-    .then(function(r) {
-      if (cancelled) return
-      setSummary(r.data.summary || "")
-      setLoading(false)
-    })
-    .catch(function() {
-      if (cancelled) return
-      setError(true)
-      setLoading(false)
-    })
+      .then(function (r) {
+        if (cancelled) return
+        setSummary(r.data.summary || "")
+        setLoading(false)
+      })
+      .catch(function () {
+        if (cancelled) return
+        setError(true)
+        setLoading(false)
+      })
 
-    return function() { cancelled = true }
+    return function () { cancelled = true }
 
   }, [data, type])
 
-  if (!data || !data.length) return null
+  const isEmpty = !data || (
+    Array.isArray(data)
+      ? data.length === 0
+      : Object.keys(data).length === 0
+  )
+  if (isEmpty) return null
 
   return (
     <div style={{
@@ -68,7 +77,7 @@ export default function AISummary({ type, data, context }) {
 
       {(loading || (!summary && !error)) && (
         <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
-          {[100, 88, 70].map(function(w) {
+          {[100, 88, 70].map(function (w) {
             return (
               <div key={w} className="skeleton" style={{
                 height: "11px",
@@ -105,3 +114,4 @@ export default function AISummary({ type, data, context }) {
     </div>
   )
 }
+

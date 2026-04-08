@@ -234,11 +234,10 @@ export default function StatBar({ filters }) {
               </p>
               <p style={{
                 fontSize: "11px", color: "var(--text-dim)",
-                lineHeight: 1.5, wordBreak: "break-word",
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
+                lineHeight: 1.5,
+                whiteSpace: "normal",
+                wordBreak: "break-word",
+                overflowWrap: "break-word",
               }}>
                 {topTitle}
               </p>
