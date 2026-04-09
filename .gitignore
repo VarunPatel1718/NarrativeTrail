@@ -1,16 +1,5 @@
-# Python
 __pycache__/
 *.pyc
-*.pyo
-venv/
-
-# Environment
 .env
-.env.local
-
-# Node
-node_modules/
-.next/
-
-# Database
 *.db
+venv/hf_space/ 
