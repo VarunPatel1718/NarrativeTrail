@@ -81,11 +81,10 @@
 ---
 
 ## Prompt 010
-**Component:** main.py Flask backend — DATA path fix (../data vs absolute), FAISS format mismatch (faiss.index vs faiss_index.pkl), post_ids fallback
-**Prompt:** Add CORS support for Vercel deployment with wildcard domains.
-**Issue with output:** The AI used flask-cors with origins=["*"] which is insecure, and didn't include vercel.app in the list.
-**Fix applied:** Specified origins=["http://localhost:5173", "http://localhost:3000", "*.vercel.app"] explicitly.
-
+**Component:** main.py Flask backend — CORS configuration for Vercel
+**Prompt:** "Add CORS support to Flask backend to allow requests from Vercel deployment"
+**Issue with output:** Used `origins=["*.vercel.app"]` wildcard. Frontend got blocked with CORS error in production — Flask-CORS does not support wildcard subdomains.
+**Fix applied:** Changed to `CORS(app)` to allow all origins. The `*.vercel.app` wildcard syntax is not supported by flask-cors.
 ---
 
 ## Prompt 011
@@ -326,3 +325,21 @@
 **Issue with output:** The AI didn't validate the mappings, allowing invalid bloc assignments.
 **Fix applied:** Added type guards and runtime checks for config integrity.</content>
 <parameter name="filePath">c:\NarrativeTrail\varunpatel-prompts.md
+
+## Prompt 041
+**Component:** main.py — Groq SDK on HF Spaces
+**Prompt:** "Integrate Groq API client in Flask backend for AI summaries"
+**Issue with output:** Generated `Groq(api_key=os.getenv("GROQ_API_KEY"))` — worked locally but on HF Spaces threw `Client.__init__() got an unexpected keyword argument 'proxies'`. Old groq==0.9.0 was incompatible with HF's proxy layer.
+**Fix applied:** Upgraded to groq==0.13.0 in requirements.txt. The newer SDK handles proxy environments correctly.
+
+## Prompt 042
+**Component:** Git LFS — large file deployment to HF Spaces
+**Prompt:** "How to push large files to Hugging Face Spaces via git"
+**Issue with output:** Suggested standard git push. HF Spaces rejected files >10MB with `remote: Your push was rejected because it contains files larger than 10 MiB`. Then suggested git lfs but files kept appearing in regular git history causing `lfs-verify` hook failures.
+**Fix applied:** Ran `git filter-branch` to purge all large files from git history completely, then force-pushed clean history, then re-added files via `git add -f` so LFS tracked them correctly.
+
+## Prompt 043
+**Component:** HF Spaces — DATA path resolution
+**Prompt:** "Fix file not found error for data files on Hugging Face Spaces"
+**Issue with output:** Suggested `DATA = "../data"` relative path. On HF Spaces Docker container everything runs from `/app/` so `../data` resolved to `/data/` which doesn't exist. Got `FileNotFoundError: /app/data/processed.parquet`.
+**Fix applied:** Changed to `DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")` — uses absolute path relative to the script file itself, works in both local and Docker environments.
